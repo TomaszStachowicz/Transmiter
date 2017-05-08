@@ -1,4 +1,5 @@
 /* DrippyT2 by Marek Macner (c) 2017 */
+/* xBridgePlus protocol add by Tomasz Stachowicz */
 #define DEBUG
 #define DEBUGM
 //#define DEBUGX

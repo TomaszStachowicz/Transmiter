@@ -27,12 +27,15 @@ void RfduinoData()
   analogSelection(VDD_1_3_PS);         
   int sensorValue = analogRead(1); 
   rfduinoData.voltage = sensorValue * (360 / 1023.0) * 10; 
-  rfduinoData.voltagePercent = map(rfduinoData.voltage, 2900, 3600, 0, 100);  
+  rfduinoData.voltagePercent = map(rfduinoData.voltage, 2400, 3600, 0, 100);  
   rfduinoData.temperatureC = RFduino_temperature(CELSIUS); 
   rfduinoData.temperatureF = RFduino_temperature(FAHRENHEIT);  
-  if (rfduinoData.voltage < 2900) BatteryOK = false;
+  if (rfduinoData.voltage < 2400) BatteryOK = false;
   else BatteryOK = true;
-  
+  //timi
+  xbridgeplus.data_packet.dex_battery=rfduinoData.voltage;
+  xbridgeplus.data_packet.my_battery=rfduinoData.voltagePercent;
+
   #ifdef DEBUGM
     Serial.println("RFDuino data:");
     Serial.print(" - Voltage [mv]: ");
@@ -48,6 +51,8 @@ void RfduinoData()
 
 void readAllData()
 {  
+  if (BatteryOK==false)return;//if battery is low than exit
+  
   NFC_wakeUP();
   NFC_CheckWakeUpEventRegister();
   NFCReady = 0;
@@ -67,8 +72,9 @@ void setupInitData()
 {
   if (p->marker == 'T')
   {
-    protocolType = p->protocolType;
-    runPeriod = p->runPeriod;
+    //timi DEBUG
+    //protocolType = p->protocolType;
+    //runPeriod = p->runPeriod;
     #ifdef DEBUG
       Serial.print("Init data present at page ");
       Serial.println(MY_FLASH_PAGE);
@@ -84,12 +90,14 @@ void setupInitData()
   {
     eraseData();
     valueSetup.marker = 'T';
-    valueSetup.protocolType = 1;                  // 1 - LimiTTer, 2 - Transmiter, 3 - LibreCGM, 4 - Transmiter II
+    //timi DEBUG
+    //valueSetup.protocolType = 1;                  // 1 - LimiTTer, 2 - Transmiter, 3 - LibreCGM, 4 - Transmiter II, 10 - xBridgePlus
     valueSetup.runPeriod = 5; 
     valueSetup.firmware = 0x02;  
     writeData();
-    protocolType = p->protocolType;
-    runPeriod = p->runPeriod;
+    //timi DEBUG
+    //protocolType = p->protocolType;
+    //runPeriod = p->runPeriod;
     #ifdef DEBUG
       Serial.print("New init data stored at page ");
       Serial.println(MY_FLASH_PAGE);
@@ -157,6 +165,9 @@ void displayData()
 
 void RFduinoBLE_onReceive(char *data, int len) 
 {
+    #ifdef DEBUG
+      Serial.println("RFduinoBLE_onReceive: packet received.");
+    #endif
   if (data[0] == 'V')
   {
     String v = "v ";
@@ -196,10 +207,108 @@ void RFduinoBLE_onReceive(char *data, int len)
   }
   else
   {
-    #ifdef DEBUG
-      Serial.println("Wrong command received.");
-    #endif
-  }    
+    switch(data[1]){//xBridge packet:
+
+    case 0x01:  //if TXID packet is received: len==6 and cmd_code==01
+      #ifdef DEBUG
+          Serial.print("TXID received: ");
+      #endif
+      if(data[0]!=6)return;
+      memcpy(&xbridgeplus.beacon_packet.dex_src_id,data+2,sizeof(xbridgeplus.beacon_packet.dex_src_id));
+      #ifdef DEBUG
+          Serial.println(long(xbridgeplus.beacon_packet.dex_src_id));
+      #endif
+    break;
+
+    case 0xF0:  //if ACK packet is received: len==2 and cmd_code==0xF1
+      if(data[0]!=2)return;
+      xbridgeplus.received_ack_packet=true;
+      #ifdef DEBUG
+          Serial.println("ACK received.");
+      #endif
+    break;
+
+    case 0x02:  //xBridgePlus packet:
+        switch(data[2]){//parse xBridgePlus sub-codes:
+          case 0x00:
+            //if data_request_packet packet is received: len==12 and sub_code==00 cmd_code==02 Check requested_sub_code in next byte:
+            //0x00 data_packet, 0x01 status_packet, 0x02  last 15 minutes readings part1, 0x03 last 15 minutes readings part2, 0x04 last 8 hours readings part1, 0x05 last 8 hours readings part2
+            switch(data[3]){
+            // xBridge data_packet is requested:
+            case 0x00:
+            #ifdef DEBUG
+              Serial.println("data_packet reqested.");
+            #endif
+            xbridgeplus.requested_data_packet=true;
+            readAllData();
+            dataTransferBLE();
+            break;
+
+            //last 15 minutes readings - part1 (current and last 7 readings, 1 minute interval) is requested:
+            case 0x02:
+            #ifdef DEBUG
+              Serial.println("last 15 minutes readings part1 reqested.");
+            #endif
+            //if(data[0]!=12)return;
+            xbridgeplus.requested_quarter_packet1=true;
+            
+            //data is current if xbridgeplus.requested_quarter_packet2 packet is sent
+            if(xbridgeplus.data_is_current)
+              xbridgeplus.data_is_current=false;
+            else
+              readAllData();
+              
+            dataTransferBLE();
+            break;
+            
+            //buffer[1] == 0x02 && buffer[2] == 0x3 get last 15 minutes readings - part1 (next 8 readings, 1 minute interval)
+            case 0x03:
+            #ifdef DEBUG
+              Serial.println("last 15 minutes readings part2 reqested.");
+            #endif
+            //if(data[0]!=12)return;
+            xbridgeplus.requested_quarter_packet2=true;
+            readAllData();
+            dataTransferBLE();
+            break;
+     
+            default://bad request packet
+            #ifdef DEBUG
+              Serial.println("ERROR: xBridgePlus unsupported request packet received.");
+              Serial.print("data-1: ");
+              Serial.print(int(data[1]));
+              Serial.print("data-2: ");
+              Serial.print(int(data[2]));
+              Serial.print("data-3: ");
+              Serial.println(int(data[3]));
+            #endif
+            break;      
+          }//switch requested_sub_code
+          break;
+ 
+        default://bad xBridgePlus packet
+        #ifdef DEBUG
+          Serial.println("ERROR: xBridgePlus unsupported packet received.");
+          Serial.print("data-1: ");
+          Serial.print(int(data[1]));
+          Serial.print("data-2: ");
+          Serial.println(int(data[2]));
+        #endif
+        break;      
+      }//switch sub_code
+    break;//xBridgePlus request packet received
+    
+    default://bad xBridge packet
+        #ifdef DEBUG
+          Serial.println("ERROR: unknown packet received,");
+          Serial.print("data-1: ");
+          Serial.print(int(data[1]));
+          Serial.print("data-2: ");
+          Serial.println(int(data[2]));
+        #endif
+    break;      
+    } //switch xBridgePlus cmd_code
+  }  //not Transmiter packet    
 }
 
 void RFduinoBLE_onDisconnect() 
@@ -208,7 +317,7 @@ void RFduinoBLE_onDisconnect()
     #ifdef DEBUG
       Serial.println("BT disconnected.");
     #endif
-    _UBP_hostDisconnected();
+//    _UBP_hostDisconnected();
 }
 
 void RFduinoBLE_onConnect() 
@@ -234,3 +343,92 @@ bool BLEconnected()
 {
   return hostIsConnected;
 }
+void dataTransferBLE()
+{  
+  
+  for (int i=0; i<6; i++)
+  {
+    if (BTconnected)
+    {
+      #ifdef DEBUGM
+        Serial.println("Conected :");
+      #endif
+      if (protocolType == 1) forLimiTTer();
+      else if (protocolType == 2) forTransmiter1();
+      else if (protocolType == 3) forTransmiter2(); 
+      else if (protocolType == 4) forLibreCGM();
+      else if (protocolType == 10) forxBdridgePlus();
+      #ifdef DEBUGM
+        Serial.println("Data transferred.");
+      #endif
+      break;
+    }
+    else
+    {     
+      #ifdef DEBUGM
+        Serial.print("Not conected - data not transferred -> try:");
+        Serial.println(i);
+      #endif
+      delay(1000);
+    }
+  }  
+  NFCReady = 1;
+}
+
+void setupBluetoothConnection() 
+{
+  if (protocolType == 1) RFduinoBLE.deviceName = "LimiTTer";
+  else if (protocolType == 2) RFduinoBLE.deviceName = "LimiTTer";
+  else if (protocolType == 3) RFduinoBLE.deviceName = "Transmiter";   
+  RFduinoBLE.advertisementData = "data";
+  RFduinoBLE.customUUID = "c97433f0-be8f-4dc8-b6f0-5343e6100eb4";
+  RFduinoBLE.advertisementInterval = MILLISECONDS(300); 
+
+  if (protocolType == 10) {
+    RFduinoBLE.deviceName = "xBridge02";   
+    RFduinoBLE.advertisementData = "rfduino";
+    RFduinoBLE.customUUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
+    RFduinoBLE.advertisementInterval = 300;//interval between advertisement transmissions ms (range is 20ms to 10.24s) - default 20ms
+  }
+
+  
+  RFduinoBLE.txPowerLevel = 4; 
+  RFduinoBLE.begin();    
+  #ifdef DEBUGM
+    Serial.println("... done seting up Bluetooth stack and starting connection.");
+  #endif  
+}
+
+
+//send a beacon with the TXID
+void sendBeacon(){
+  xbridgeplus.beacon_packet.size=0x7;
+  xbridgeplus.beacon_packet.cmd_code=0xF1;
+  //xbridgeplus.beacon_packet.dex_src_id=0x0;
+  xbridgeplus.beacon_packet.function= DEXBRIDGE_PROTO_LEVEL;
+  RFduinoBLE.send((char*)&xbridgeplus.beacon_packet, xbridgeplus.beacon_packet.size);
+  #ifdef DEBUG
+      Serial.print("BLE send BEACON_PACKET: ");
+      Serial.println((long)xbridgeplus.beacon_packet.dex_src_id);
+  #endif  
+}
+
+//repeat sending beacons until TXID is received, default timeout=4minutes (value is in seconds)
+void sendBeacons() {
+  int timeout=4*60;
+    if(protocolType=10)
+    do{
+      if (!BTconnected){//sleep if no BLE connection
+        RFduino_ULPDelay(1000 * 60);
+        timeout=timeout-60;
+      }
+    
+      sendBeacon();
+      RFduino_ULPDelay(1000 * 5);
+      timeout=timeout-5;
+    }while(xbridgeplus.beacon_packet.dex_src_id==0 && timeout>=0);
+}
+
+
+
+
