@@ -18,6 +18,7 @@ void NFC_CheckWakeUpEventRegister()
 {
     int length = 5;
     byte command[length];
+    while( RFduinoBLE.radioActive );
     command[ 0] = 0x08;   
     command[ 1] = 0x03;   
     command[ 2] = 0x62;  
@@ -44,10 +45,13 @@ void send_NFC_Command(byte *commandArray, int length)
   digitalWrite(PIN_SPI_SS, HIGH);
   delay(1);
 }
+#define NFCTIMEOUT 500
 void poll_NFC_UntilResponsIsReady() 
 {   
+  unsigned long ms;
+  ms= millis();
   digitalWrite(PIN_SPI_SS , LOW);    
-  while(resultBuffer[0] != 8) 
+  while((resultBuffer[0] != 8) && ((millis() - ms) < NFCTIMEOUT) )
   {
     resultBuffer[0] = SPI.transfer(0x03); 
     #ifdef DEBUGX

@@ -14,11 +14,15 @@ _status_packet status_packet;
 _quarter_packet quarter_packet;
 _history_packet history_packet;
 
-bool data_is_current=false;
+bool sensor_data_is_current=false;
 bool received_ack_packet=false;
 bool requested_data_packet=false;
 bool requested_quarter_packet1=false;
 bool requested_quarter_packet2=false;
+int failure_count;
+
+void sendBeacon();
+void sendBeacons();
 
 };
 

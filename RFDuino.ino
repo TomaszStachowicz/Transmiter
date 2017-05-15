@@ -23,13 +23,15 @@ void restartWDT()
 
 void RfduinoData() 
 {
-  analogReference(VBG);                
-  analogSelection(VDD_1_3_PS);         
-  int sensorValue = analogRead(1); 
-  rfduinoData.voltage = sensorValue * (360 / 1023.0) * 10; 
+//  analogReference(VBG);                
+//  analogSelection(VDD_1_3_PS);
+//  delay(100);         
+//  int sensorValue = analogRead(1); 
+  int sensorValue = 1023; 
+  rfduinoData.voltage = sensorValue * (3.6 / 1023.0)*1000; //mV
   rfduinoData.voltagePercent = map(rfduinoData.voltage, 2400, 3600, 0, 100);  
-  rfduinoData.temperatureC = RFduino_temperature(CELSIUS); 
-  rfduinoData.temperatureF = RFduino_temperature(FAHRENHEIT);  
+//  rfduinoData.temperatureC = RFduino_temperature(CELSIUS); 
+//  rfduinoData.temperatureF = RFduino_temperature(FAHRENHEIT);  
   if (rfduinoData.voltage < 2400) BatteryOK = false;
   else BatteryOK = true;
   //timi
@@ -52,7 +54,6 @@ void RfduinoData()
 void readAllData()
 {  
   if (BatteryOK==false)return;//if battery is low than exit
-  
   NFC_wakeUP();
   NFC_CheckWakeUpEventRegister();
   NFCReady = 0;
@@ -62,6 +63,8 @@ void readAllData()
   systemInformationData = systemInformationDataFromGetSystemInformationResponse();
   printSystemInformationData(systemInformationData);
   sensorData.sensorDataOK = readSensorData();
+  if(sensorData.sensorDataOK)xbridgeplus.sensor_data_is_current=true;
+
   decodeSensor();
   RfduinoData();
 
@@ -88,13 +91,13 @@ void setupInitData()
   }
   else
   {
-    eraseData();
+    //eraseData();
     valueSetup.marker = 'T';
     //timi DEBUG
     //valueSetup.protocolType = 1;                  // 1 - LimiTTer, 2 - Transmiter, 3 - LibreCGM, 4 - Transmiter II, 10 - xBridgePlus
     valueSetup.runPeriod = 5; 
     valueSetup.firmware = 0x02;  
-    writeData();
+    //writeData();
     //timi DEBUG
     //protocolType = p->protocolType;
     //runPeriod = p->runPeriod;
@@ -251,13 +254,7 @@ void RFduinoBLE_onReceive(char *data, int len)
             #endif
             //if(data[0]!=12)return;
             xbridgeplus.requested_quarter_packet1=true;
-            
-            //data is current if xbridgeplus.requested_quarter_packet2 packet is sent
-            if(xbridgeplus.data_is_current)
-              xbridgeplus.data_is_current=false;
-            else
-              readAllData();
-              
+            readAllData();              
             dataTransferBLE();
             break;
             
@@ -361,18 +358,19 @@ void dataTransferBLE()
       #ifdef DEBUGM
         Serial.println("Data transferred.");
       #endif
-      break;
+      //break;
     }
     else
     {     
       #ifdef DEBUGM
         Serial.print("Not conected - data not transferred -> try:");
-        Serial.println(i);
+        //Serial.println(i);
       #endif
-      delay(1000);
+      //delay(1000);
+      RFduino_ULPDelay(1000);
     }
   }  
-  NFCReady = 1;
+  //NFCReady = 1;
 }
 
 void setupBluetoothConnection() 
@@ -388,7 +386,8 @@ void setupBluetoothConnection()
     RFduinoBLE.deviceName = "xBridge02";   
     RFduinoBLE.advertisementData = "rfduino";
     RFduinoBLE.customUUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
-    RFduinoBLE.advertisementInterval = 300;//interval between advertisement transmissions ms (range is 20ms to 10.24s) - default 20ms
+    RFduinoBLE.txPowerLevel = -8;  // (-20dbM to +4 dBm: -20, -16, -12, -8, -4, 0, +4 - MAX)
+    RFduinoBLE.advertisementInterval = MILLISECONDS(200); //interval between advertisement transmissions ms (range is 20ms to 10.24s) - default 20ms
   }
 
   
@@ -401,7 +400,7 @@ void setupBluetoothConnection()
 
 
 //send a beacon with the TXID
-void sendBeacon(){
+void xBridgePlus::sendBeacon(){
   xbridgeplus.beacon_packet.size=0x7;
   xbridgeplus.beacon_packet.cmd_code=0xF1;
   //xbridgeplus.beacon_packet.dex_src_id=0x0;
@@ -413,8 +412,8 @@ void sendBeacon(){
   #endif  
 }
 
-//repeat sending beacons until TXID is received, default timeout=4minutes (value is in seconds)
-void sendBeacons() {
+//repeat sending beacons until TXID is received, default timeout=4minutes
+void xBridgePlus::sendBeacons() {
   int timeout=4*60;
     if(protocolType=10)
     do{
@@ -428,7 +427,4 @@ void sendBeacons() {
       timeout=timeout-5;
     }while(xbridgeplus.beacon_packet.dex_src_id==0 && timeout>=0);
 }
-
-
-
 

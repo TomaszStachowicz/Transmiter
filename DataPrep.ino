@@ -152,19 +152,14 @@ void forLibreCGM()
 //timi
 void forxBdridgePlus()
 {
-  #ifdef DEBUGM
-    Serial.println("Start BT transmission forxBdridgePlus...");
-    Serial.printf("IDN Sizeof ist : %d\n", sizeof(systemInformationData));
-  #endif  
-  printSystemInformationData(systemInformationData);    
-  #ifdef DEBUGM
-    Serial.println("----about to send all data bytes packet");
-  #endif
-  if (NFCReady != 2) return;//if NFC error do not send data
-
-  #ifdef DEBUGLOOP
-  transmission_counter++;
-  #endif
+  if (NFCReady != 2){
+          //if no data from NFC sensor:
+          xbridgeplus.sendBeacon();
+          xbridgeplus.data_packet.raw=0x0;
+          for(int i=0;i<8;i++)      xbridgeplus.quarter_packet.trend[i]=0x0;          
+          if(xbridgeplus.failure_count++ > MAX_FAILURES) RFduino_systemReset();//reboot if too many errors with NFC - workarround
+          return;//if NFC error do not send data
+  }
   
   if(xbridgeplus.requested_quarter_packet1){
       xbridgeplus.quarter_packet.size=19;
@@ -178,6 +173,7 @@ void forxBdridgePlus()
           Serial.println(int(xbridgeplus.quarter_packet.trend[0]));
         #endif  
       xbridgeplus.requested_quarter_packet1=false;
+      xbridgeplus.sensor_data_is_current=false;
       return;    
   }
 
@@ -193,7 +189,7 @@ void forxBdridgePlus()
           Serial.println(int(xbridgeplus.quarter_packet.trend[0]));
         #endif  
       xbridgeplus.requested_quarter_packet2=false;
-      xbridgeplus.data_is_current=true;
+      xbridgeplus.sensor_data_is_current=false;
       return;    
   }
 
@@ -202,7 +198,7 @@ void forxBdridgePlus()
       xbridgeplus.data_packet.cmd_code=0;
       xbridgeplus.data_packet.raw=sensorData.trend[0] * 100;
       xbridgeplus.data_packet.filtered=sensorData.trend[0] * 100;
-      xbridgeplus.data_packet.dex_battery=map(systemInformationData.resultCode, 0, 0x80, 0, 2047);
+      xbridgeplus.data_packet.dex_battery=2047;
       xbridgeplus.data_packet.my_battery=rfduinoData.voltagePercent;
       xbridgeplus.data_packet.dex_src_id=xbridgeplus.beacon_packet.dex_src_id;
       xbridgeplus.data_packet.function=1;
@@ -213,6 +209,7 @@ void forxBdridgePlus()
           Serial.println(xbridgeplus.data_packet.raw/100);
         #endif  
       xbridgeplus.requested_data_packet=false;
+      xbridgeplus.sensor_data_is_current=false;
       return;    
   }
 }

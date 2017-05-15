@@ -1,9 +1,8 @@
 /* DrippyT2 by Marek Macner (c) 2017 */
 /* xBridgePlus protocol add by Tomasz Stachowicz */
 #define DEBUG
-#define DEBUGM
+//#define DEBUGM
 //#define DEBUGX
-//#define DEBUGLOOP
 
 #include <RFduinoBLE.h>
 #include <SPI.h> 
@@ -16,6 +15,7 @@
 #define PIN_SPI_MISO  3
 #define PIN_SPI_SS    6
 #define PIN_IRQ       2 
+#define MAX_FAILURES  10
 
 //#define ALL_BYTES 0x1007   
 //#define IDN_DATA 0x2001    
@@ -120,12 +120,11 @@ String TxBuffer[10];
 String TxBuffer1 = "";
 
 byte protocolType = 10;    // 1 - LimiTTer, 2 - Transmiter, 3 - Transmiter II, 10 - xBridgePlus
-byte runPeriod = 1;       // czas w minutach - 0 = tylko na żądanie
+byte runPeriod = 15;       // czas w minutach - 0 = tylko na żądanie
 byte  MY_FLASH_PAGE =  251;
 
 bool BTconnected = false;
-bool BatteryOK=false;
-long transmission_counter=0;
+bool BatteryOK=true;
 
 xBridgePlus xbridgeplus;
 
@@ -137,50 +136,34 @@ void setup()
     Serial.println("DrippyT2 - setup - start");
   #endif 
   
-  RfduinoData(); 
-  setupInitData();//valueSetup.protocolType = 1; Limitter
+    setupInitData();//valueSetup.protocolType = 1; Limitter
   //timi DEBUG
   //protocolType = p->protocolType;
   //runPeriod = p->runPeriod;
   
   setupBluetoothConnection();//based on protocolType set customUUID, deviceName, advertisementData
-//  xbridgeplus.requested_data_packet=true;
-//  sendBeacons();
-  
   nfcInit();
+  #ifdef DEBUGM
+    Serial.println("nfcInit start");
+  #endif 
   configWDT();
-  #ifdef DEBUG 
-    Serial.print("NFCReady = ");
-    Serial.println(NFCReady);
-    Serial.print("Bat = ");
-    Serial.println(BatteryOK);
-    Serial.println("DrippyT2 - setup - end");
-  #endif
+  xbridgeplus.sensor_data_is_current=false;
+  xbridgeplus.sendBeacons();//get TXID, keepalive
 }
 
 void loop() 
 {
-  long minutes_number=0;
-  if (BatteryOK)
+  RFduino_ULPDelay(1000 * 60 * 7);//wait 7 minutes for xDrip requests
+  if (BatteryOK && !xbridgeplus.sensor_data_is_current)
   {
-  //#ifdef DEBUGLOOP
-    Serial.print("NFC to BLE transmissions count: ");
-    Serial.print(transmission_counter);
-    Serial.print(" work minutes: ");
-    Serial.println(minutes_number++);
-  //#endif
-//  xbridgeplus.requested_data_packet=true;
-//  sendBeacons();
-//  readAllData();
-//  dataTransferBLE();
-  }  
-  else
-  {
-//    #ifdef DEBUG 
-      Serial.println("low Battery - go sleep");
-//    #endif
-  } 
-  RFduino_ULPDelay(1000 * 60 * runPeriod);//5 minute refresh
+    if(xbridgeplus.failure_count++ >MAX_FAILURES) RFduino_systemReset();//reboot if too many errors - workarround
+    readAllData();
+    RfduinoData();
+    xbridgeplus.requested_data_packet=true;
+    dataTransferBLE();
+    xbridgeplus.sensor_data_is_current=false;//set invalid data
+  }
+
   restartWDT();
 }
 
