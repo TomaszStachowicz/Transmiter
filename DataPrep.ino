@@ -173,7 +173,6 @@ void forxBdridgePlus()
           Serial.println(int(xbridgeplus.quarter_packet.trend[0]));
         #endif  
       xbridgeplus.requested_quarter_packet1=false;
-      xbridgeplus.sensor_data_is_current=false;
       return;    
   }
 
@@ -189,7 +188,6 @@ void forxBdridgePlus()
           Serial.println(int(xbridgeplus.quarter_packet.trend[0]));
         #endif  
       xbridgeplus.requested_quarter_packet2=false;
-      xbridgeplus.sensor_data_is_current=false;
       return;    
   }
 
@@ -209,7 +207,6 @@ void forxBdridgePlus()
           Serial.println(xbridgeplus.data_packet.raw/100);
         #endif  
       xbridgeplus.requested_data_packet=false;
-      xbridgeplus.sensor_data_is_current=false;
       return;    
   }
 }

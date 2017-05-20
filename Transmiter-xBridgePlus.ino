@@ -16,6 +16,8 @@
 #define PIN_SPI_SS    6
 #define PIN_IRQ       2 
 #define MAX_FAILURES  10
+#define MAXIMUM_SENSOR_READ_TIME 10*60*60*1000 //11minutes
+#define MINIMUM_SENSOR_READ_TIME  1*60*60*1000 //1minute
 
 //#define ALL_BYTES 0x1007   
 //#define IDN_DATA 0x2001    
@@ -147,21 +149,20 @@ void setup()
     Serial.println("nfcInit start");
   #endif 
   configWDT();
-  xbridgeplus.sensor_data_is_current=false;
+  xbridgeplus.last_sensor_read_time=-3600000;
   xbridgeplus.sendBeacons();//get TXID, keepalive
 }
 
 void loop() 
 {
   RFduino_ULPDelay(1000 * 60 * 7);//wait 7 minutes for xDrip requests
-  if (BatteryOK && !xbridgeplus.sensor_data_is_current)
+  if (BatteryOK && (millis()-xbridgeplus.last_sensor_read_time >MAXIMUM_SENSOR_READ_TIME) )
   {
     if(xbridgeplus.failure_count++ >MAX_FAILURES) RFduino_systemReset();//reboot if too many errors - workarround
     readAllData();
     RfduinoData();
     xbridgeplus.requested_data_packet=true;
     dataTransferBLE();
-    xbridgeplus.sensor_data_is_current=false;//set invalid data
   }
 
   restartWDT();

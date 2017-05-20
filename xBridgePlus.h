@@ -14,7 +14,7 @@ _status_packet status_packet;
 _quarter_packet quarter_packet;
 _history_packet history_packet;
 
-bool sensor_data_is_current=false;
+long last_sensor_read_time=0;
 bool received_ack_packet=false;
 bool requested_data_packet=false;
 bool requested_quarter_packet1=false;

@@ -54,6 +54,7 @@ void RfduinoData()
 void readAllData()
 {  
   if (BatteryOK==false)return;//if battery is low than exit
+  if(millis()-xbridgeplus.last_sensor_read_time <MINIMUM_SENSOR_READ_TIME) return;//do not read sensor too fast
   NFC_wakeUP();
   NFC_CheckWakeUpEventRegister();
   NFCReady = 0;
@@ -63,7 +64,8 @@ void readAllData()
   systemInformationData = systemInformationDataFromGetSystemInformationResponse();
   printSystemInformationData(systemInformationData);
   sensorData.sensorDataOK = readSensorData();
-  if(sensorData.sensorDataOK)xbridgeplus.sensor_data_is_current=true;
+
+  if(sensorData.sensorDataOK)xbridgeplus.last_sensor_read_time=millis();
 
   decodeSensor();
   RfduinoData();
