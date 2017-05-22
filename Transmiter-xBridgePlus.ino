@@ -1,7 +1,7 @@
 /* DrippyT2 by Marek Macner (c) 2017 */
 /* xBridgePlus protocol add by Tomasz Stachowicz */
 #define DEBUG
-//#define DEBUGM
+#define DEBUGM
 //#define DEBUGX
 
 #include <RFduinoBLE.h>
@@ -16,8 +16,8 @@
 #define PIN_SPI_SS    6
 #define PIN_IRQ       2 
 #define MAX_FAILURES  10
-#define MAXIMUM_SENSOR_READ_TIME 10*60*60*1000 //11minutes
-#define MINIMUM_SENSOR_READ_TIME  1*60*60*1000 //1minute
+#define MAXIMUM_SENSOR_READ_TIME 11*60*1000 //11minutes
+#define MINIMUM_SENSOR_READ_TIME  2*60*1000 //4minutes
 
 //#define ALL_BYTES 0x1007   
 //#define IDN_DATA 0x2001    
@@ -145,6 +145,8 @@ void setup()
   
   setupBluetoothConnection();//based on protocolType set customUUID, deviceName, advertisementData
   nfcInit();
+  sendNFC_ToHibernate();
+
   #ifdef DEBUGM
     Serial.println("nfcInit start");
   #endif 
@@ -155,10 +157,15 @@ void setup()
 
 void loop() 
 {
-  RFduino_ULPDelay(1000 * 60 * 7);//wait 7 minutes for xDrip requests
+  RFduino_ULPDelay(MAXIMUM_SENSOR_READ_TIME);//wait for xDrip poll requests
   if (BatteryOK && (millis()-xbridgeplus.last_sensor_read_time >MAXIMUM_SENSOR_READ_TIME) )
   {
-    if(xbridgeplus.failure_count++ >MAX_FAILURES) RFduino_systemReset();//reboot if too many errors - workarround
+    if(xbridgeplus.failure_count++ >MAX_FAILURES) {
+      #ifdef DEBUGM
+        Serial.println("REBOOT!");
+      #endif 
+      RFduino_systemReset();//reboot if too many errors - workarround
+    }
     readAllData();
     RfduinoData();
     xbridgeplus.requested_data_packet=true;

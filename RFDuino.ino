@@ -54,7 +54,16 @@ void RfduinoData()
 void readAllData()
 {  
   if (BatteryOK==false)return;//if battery is low than exit
+    #ifdef DEBUGM
+      Serial.println("readAllData: read NFC request.");
+      Serial.println(xbridgeplus.last_sensor_read_time);
+      Serial.println((millis()-xbridgeplus.last_sensor_read_time)/1000.0);
+    #endif
+
   if(millis()-xbridgeplus.last_sensor_read_time <MINIMUM_SENSOR_READ_TIME) return;//do not read sensor too fast
+    #ifdef DEBUGM
+      Serial.println("readAllData: read NFC begin.");
+    #endif
   NFC_wakeUP();
   NFC_CheckWakeUpEventRegister();
   NFCReady = 0;
@@ -71,6 +80,9 @@ void readAllData()
   RfduinoData();
 
   sendNFC_ToHibernate();
+    #ifdef DEBUGM
+      Serial.println("readAllData: read NFC end.");
+    #endif
 }
 
 void setupInitData()
@@ -170,9 +182,6 @@ void displayData()
 
 void RFduinoBLE_onReceive(char *data, int len) 
 {
-    #ifdef DEBUG
-      Serial.println("RFduinoBLE_onReceive: packet received.");
-    #endif
   if (data[0] == 'V')
   {
     String v = "v ";
@@ -345,12 +354,12 @@ bool BLEconnected()
 void dataTransferBLE()
 {  
   
-  for (int i=0; i<6; i++)
-  {
+//  for (int i=0; i<6; i++)
+//  {
     if (BTconnected)
     {
       #ifdef DEBUGM
-        Serial.println("Conected :");
+        Serial.println("Connected :");
       #endif
       if (protocolType == 1) forLimiTTer();
       else if (protocolType == 2) forTransmiter1();
@@ -371,7 +380,7 @@ void dataTransferBLE()
       //delay(1000);
       RFduino_ULPDelay(1000);
     }
-  }  
+//  }  
   //NFCReady = 1;
 }
 
@@ -388,8 +397,8 @@ void setupBluetoothConnection()
     RFduinoBLE.deviceName = "xBridge02";   
     RFduinoBLE.advertisementData = "rfduino";
     RFduinoBLE.customUUID = "0000ffe0-0000-1000-8000-00805f9b34fb";
-    RFduinoBLE.txPowerLevel = -8;  // (-20dbM to +4 dBm: -20, -16, -12, -8, -4, 0, +4 - MAX)
-    RFduinoBLE.advertisementInterval = MILLISECONDS(200); //interval between advertisement transmissions ms (range is 20ms to 10.24s) - default 20ms
+    RFduinoBLE.txPowerLevel = -4;  // (-20dbM to +4 dBm: -20, -16, -12, -8, -4, 0, +4 - MAX)
+    RFduinoBLE.advertisementInterval = 300; //interval between advertisement transmissions ms (range is 20ms to 10.24s) - default 20ms
   }
 
   
@@ -419,7 +428,7 @@ void xBridgePlus::sendBeacons() {
   int timeout=4*60;
     if(protocolType=10)
     do{
-      if (!BTconnected){//sleep if no BLE connection
+      if (!BTconnected){//1 minute sleep if no BLE connection
         RFduino_ULPDelay(1000 * 60);
         timeout=timeout-60;
       }

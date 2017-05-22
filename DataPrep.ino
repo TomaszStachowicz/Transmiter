@@ -173,6 +173,7 @@ void forxBdridgePlus()
           Serial.println(int(xbridgeplus.quarter_packet.trend[0]));
         #endif  
       xbridgeplus.requested_quarter_packet1=false;
+      xbridgeplus.failure_count=0;
       return;    
   }
 
@@ -188,6 +189,7 @@ void forxBdridgePlus()
           Serial.println(int(xbridgeplus.quarter_packet.trend[0]));
         #endif  
       xbridgeplus.requested_quarter_packet2=false;
+      xbridgeplus.failure_count=0;
       return;    
   }
 
@@ -203,10 +205,11 @@ void forxBdridgePlus()
     
         RFduinoBLE.send((char*)&xbridgeplus.data_packet, xbridgeplus.data_packet.size);
         #ifdef DEBUG
-          Serial.print("BLE send DATA_PACKET: ");
+          Serial.print("                                                  BLE send DATA_PACKET: ");
           Serial.println(xbridgeplus.data_packet.raw/100);
         #endif  
       xbridgeplus.requested_data_packet=false;
+      xbridgeplus.failure_count=0;
       return;    
   }
 }
